@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Escalas de Serviço</title>
+  <meta name="theme-color" content="#0b1220"/>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+  <!-- TELA DE LOGIN / CADASTRO -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-box">
+      <div class="login-title">Escalas de Serviço</div>
+      <p class="muted small" style="text-align: center; margin-bottom: 20px;">Acesso ao portal de escalas</p>
+
+      <div id="formLogin">
+        <label class="lbl">Usuário
+          <input id="loginUser" type="text" class="input" style="margin-bottom:10px" placeholder="">
+        </label>
+        <label class="lbl">Senha
+          <input id="loginPass" type="password" class="input" style="margin-bottom:14px" placeholder="Sua senha">
+        </label>
+        <button id="btnLogin" class="btn" style="width:100%; padding: 12px;">Entrar no Sistema</button>
+        <div style="text-align:center; margin-top:15px;">
+          <a href="#" id="showRegister" class="small muted">Não tem conta? Cadastre-se</a>
+        </div>
+      </div>
+
+      <div id="formRegister" style="display:none;">
+        <label class="lbl">Nome Completo
+          <input id="regName" type="text" class="input" style="margin-bottom:10px" placeholder="paulo sergio costa">
+        </label>
+        <label class="lbl">Usuário (Login)
+          <input id="regUser" type="text" class="input" style="margin-bottom:10px" placeholder="Ex: pa.costa">
+        </label>
+        <label class="lbl">Senha
+          <input id="regPass" type="password" class="input" style="margin-bottom:14px" placeholder="Crie uma senha">
+        </label>
+        <button id="btnRegister" class="btn green" style="width:100%; padding: 12px;">Cadastrar e Entrar</button>
+        <div style="text-align:center; margin-top:15px;">
+          <a href="#" id="showLogin" class="small muted">Já tem conta? Entrar</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-text">
+        <div class="brand-title">Sistema de Escalas</div>
+        <div class="brand-sub">Gerenciamento de Equipes</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div id="currentUserBadge" class="badge">Usuário: ---</div>
+      <button class="btn ghost danger" id="btnLogout" style="padding: 6px 12px; font-size: 12px;">Sair</button>
+    </div>
+  </header>
+
+  <main class="layout" id="mainLayout" style="display:none;">
+    
+    <!-- PAINEL ADMIN -->
+    <aside class="panel left" id="adminSidebar">
+      
+      <!-- PAINEL DE TROCAS (NOVO) -->
+      <div id="adminSwapsPanel" style="display:none; border: 2px solid rgba(251,113,133,.4); background:#fff5f5; border-radius:14px; margin-bottom:20px; padding:10px;">
+        <div class="h2" style="color:var(--danger); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+          <span>🔔</span> Trocas Solicitadas
+        </div>
+        <div class="list" id="swapList"></div>
+      </div>
+
+      <div class="panel-head main-head">
+        <div>
+          <div class="h2">Setores / Propósitos</div>
+          <div class="small muted">Locais onde a equipe pode servir</div>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="row" style="align-items: center;">
+          <input id="newSectorName" class="input" type="text" placeholder="Nome do setor"/>
+          <input id="newSectorColor" type="color" class="input" style="width: 45px; padding: 2px; cursor: pointer; height: 38px;" value="#36c37d" title="Cor do Setor"/>
+          <button class="btn green" id="btnAddSector" style="min-width: 80px;">Add</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="list" id="sectorList"></div>
+      </div>
+
+      <div class="panel-head main-head" style="margin-top:20px; border-top:1px solid var(--line);">
+        <div>
+          <div class="h2">Usuários do Sistema</div>
+          <div class="small muted">Administradores e Colaboradores</div>
+        </div>
+        <button class="btn green" id="btnAdminAddUser" style="padding: 6px 12px; font-size:12px;">+ Adicionar</button>
+      </div>
+      <div class="panel-body">
+        <div class="list" id="employeeList"></div>
+      </div>
+    </aside>
+
+    <!-- CALENDÁRIO ADMIN -->
+    <section class="panel right" id="adminCalendarView">
+      <div class="panel-head main-head" style="flex-wrap: wrap;">
+        <div>
+          <div class="h2">Mural de Escalas</div>
+          <div class="small muted">Visão Comparativa: Mês Anterior e Vigente</div>
+        </div>
+        
+        <div class="responsive-filters" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+          <select id="filterUser" class="select" style="width:180px;"><option value="">Todos os Colaboradores</option></select>
+          <select id="filterSector" class="select" style="width:180px;"><option value="">Todos os Setores</option></select>
+          
+          <div class="divider" style="width: 1px; height: 30px; background: var(--line); margin: 0 5px;"></div>
+          
+          <select id="month" class="select" style="width:120px"></select>
+          <select id="year" class="select" style="width:90px"></select>
+        </div>
+      </div>
+
+      <div class="panel-body" style="padding:16px">
+        <div class="calendar-wrap" id="calendar"></div>
+      </div>
+    </section>
+
+    <!-- VISÃO DO USUÁRIO COMUM -->
+    <section class="panel right" id="userDashboard" style="grid-column: 1 / -1; display:none;">
+      <div class="panel-head main-head">
+        <div>
+          <div class="h2">Minhas Escalas</div>
+          <div class="small muted">Dias em que você foi escalado para servir</div>
+        </div>
+        <div class="picker">
+          <select id="userMonth" class="select" style="width:130px"></select>
+          <select id="userYear" class="select" style="width:100px"></select>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:16px">
+        <div id="myScheduleList" class="my-schedules-grid">
+          <!-- Preenchido via JS -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: USUÁRIOS (ADMIN) -->
+  <div class="modal" id="modalUserForm" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="h2" id="modalUserTitle">Novo Colaborador</div>
+        <button class="icon-btn" id="btnCancelUserForm">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="muId" />
+        <label class="lbl">Nome Completo <input id="muName" type="text" class="input" placeholder="Ex: João Silva"></label>
+        <label class="lbl">Usuário (Login) <input id="muLogin" type="text" class="input" placeholder="Ex: joao.silva"></label>
+        <label class="lbl">Senha <input id="muPass" type="text" class="input" placeholder="Senha do usuário"></label>
+        <label class="lbl">Nível de Acesso
+          <select id="muRole" class="select">
+            <option value="colaboradores">Colaborador (Aparece na Escala)</option>
+            <option value="admins">Administrador (Não aparece na Escala)</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <div class="spacer"></div>
+        <button class="btn green" id="btnSaveUserForm">Salvar Usuário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ESCALAR DIA (ADMIN) -->
+  <div class="modal" id="modalSchedule" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="h2">Escalar Colaborador</div>
+        <button class="icon-btn" id="btnCancelSchedule">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Escalando <b><span id="schUserName" style="color:var(--blue)"></span></b> para o dia <b><span id="schDate"></span></b>.</p>
+        <br>
+        <label class="lbl">Selecione o Setor
+          <select id="schSector" class="select" style="margin-top:5px;"></select>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn danger ghost" id="btnRemoveSchedule">Remover da Escala</button>
+        <div class="spacer"></div>
+        <button class="btn green" id="btnSaveSchedule">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RESOLVER TROCA (ADMIN) -->
+  <div class="modal" id="modalAdminResolveSwap" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="h2">Resolver Troca de Escala</div>
+        <button class="icon-btn" id="btnCancelResolve">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: rgba(44,123,229,.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size:13px;">
+          <p><b>Solicitante:</b> <span id="rsUserName" style="color:var(--blue)"></span></p>
+          <p><b>Saindo de:</b> <span id="rsOldDate"></span> (<span id="rsOldSector"></span>)</p>
+          <p><b>Sugestão:</b> <span id="rsSuggDate" style="color:var(--danger)"></span></p>
+        </div>
+        
+        <label class="lbl">Escolha a Nova Data:
+          <input type="date" id="rsNewDate" class="input" style="margin-top:5px;" />
+        </label>
+        <label class="lbl">Defina o Novo Setor:
+          <select id="rsNewSector" class="select" style="margin-top:5px;"></select>
+        </label>
+
+        <div style="margin-top: 15px; border-top: 1px solid var(--line); padding-top:10px;">
+          <div class="h2" style="font-size:14px; margin-bottom:5px;">Equipe nesta Nova Data:</div>
+          <div id="rsExistingUsers" style="background:#f8fbff; padding:8px; border-radius:8px; border:1px solid var(--line); margin-bottom:10px;"></div>
+          
+          <label class="lbl">Ação Avançada: Substituir alguém?
+            <select id="rsSwapWith" class="select" style="margin-top:5px;"></select>
+          </label>
+        </div>
+
+      </div>
+      <div class="modal-foot">
+        <button class="btn danger ghost" id="btnRejectSwap">Rejeitar Troca</button>
+        <div class="spacer"></div>
+        <button class="btn green" id="btnConfirmResolve">Confirmar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SUGERIR TROCA (COLABORADOR) -->
+  <div class="modal" id="modalUserSwap" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="h2">Pedir Alteração de Data</div>
+        <button class="icon-btn" id="btnCancelSwap">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Você está escalado em: <b><span id="swapOldDate"></span></b> (<span id="swapSectorName"></span>).</p>
+        <br>
+        <label class="lbl">Possui uma data de preferência?
+          <select id="swapHasSuggestion" class="select" style="margin-top:5px;">
+            <option value="no">Não, o administrador pode escolher outra</option>
+            <option value="yes">Sim, quero sugerir uma data específica</option>
+          </select>
+        </label>
+        <div id="swapDateWrap" style="display:none; margin-top:10px;">
+          <label class="lbl">Qual dia você prefere?
+            <input type="date" id="swapNewDate" class="input" style="margin-top:5px;" />
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <div class="spacer"></div>
+        <button class="btn blue" id="btnConfirmSwap">Enviar Pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
