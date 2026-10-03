@@ -48,7 +48,6 @@ const saveSector = async (id, nome, cor) => set(ref(database, `setores/${id}`), 
 const updateSector = async (id, nome, cor) => update(ref(database, `setores/${id}`), { nome, cor });
 const removeSector = async (id) => remove(ref(database, `setores/${id}`));
 
-// Alterado para aceitar o "turno" (Manhã, Tarde, Noite)
 const saveSchedule = async (userId, userName, year, month, day, sectorId, sectorName, turno = "", silent = false) => {
   const path = `escalas/${String(year)}/${pad2(month+1)}/${pad2(day)}/${userId}`;
   if (sectorId) {
@@ -69,11 +68,12 @@ const setupAuth = () => {
   $("#showLogin").onclick = () => { $("#formRegister").style.display="none"; $("#formLogin").style.display="block"; };
 
   $("#btnLogin").onclick = async () => {
-    const login = $("#loginUser").value.trim();
+    const rawLogin = $("#loginUser").value.trim();
+    const loginFormatado = rawLogin.toLowerCase(); // Converte para minúsculas para validação
     const pass = $("#loginPass").value.trim();
     
-    if (login === "au.costa" && pass === "80605276") {
-      currentUser = { id: "admin_au_costa", nome: "Aury Costa", login: "au.costa", role: "admins" };
+    if (loginFormatado === "au.costa" && pass === "80605276") {
+      currentUser = { id: "admin_au_costa", nome: "Aury Costa", login: rawLogin, role: "admins" };
       await set(ref(database, `usuarios/admins/admin_au_costa`), { nome: currentUser.nome, login: currentUser.login, senha: pass });
       sessionStorage.setItem("logged_user", JSON.stringify(currentUser));
       initApp(); return;
@@ -82,11 +82,13 @@ const setupAuth = () => {
     const snap = await get(ref(database, 'usuarios'));
     const dbUsers = snap.val() || { admins: {}, colaboradores: {} };
     let userObj = null; let userRole = null; let userId = null;
+    
     const findIn = (group, roleName) => {
       for (const [id, u] of Object.entries(group || {})) {
-        if (u.login === login) { userObj = u; userRole = roleName; userId = id; break; }
+        if (u.login && u.login.toLowerCase() === loginFormatado) { userObj = u; userRole = roleName; userId = id; break; }
       }
     };
+    
     findIn(dbUsers.admins || {}, 'admins');
     if(!userObj) findIn(dbUsers.colaboradores || {}, 'colaboradores');
 
@@ -102,19 +104,21 @@ const setupAuth = () => {
 
   $("#btnRegister").onclick = async () => {
     const nome = $("#regName").value.trim();
-    const login = $("#regUser").value.trim();
+    const rawLogin = $("#regUser").value.trim();
+    const loginFormatado = rawLogin.toLowerCase();
     const pass = $("#regPass").value.trim();
-    if(!nome || !login || !pass) return Swal.fire('Atenção', 'Preencha todos os campos.', 'warning');
+    if(!nome || !rawLogin || !pass) return Swal.fire('Atenção', 'Preencha todos os campos.', 'warning');
 
     const snap = await get(ref(database, 'usuarios'));
     const dbUsers = snap.val() || { admins: {}, colaboradores: {} };
-    const allLogins = [...Object.values(dbUsers.admins || {}), ...Object.values(dbUsers.colaboradores || {})].map(u => u.login);
-    if (allLogins.includes(login)) return Swal.fire('Erro', 'Este login já está em uso.', 'error');
+    const allLogins = [...Object.values(dbUsers.admins || {}), ...Object.values(dbUsers.colaboradores || {})].map(u => (u.login || "").toLowerCase());
+    
+    if (allLogins.includes(loginFormatado)) return Swal.fire('Erro', 'Este login já está em uso.', 'error');
 
     const novoId = "usr_" + Date.now(); 
-    await set(ref(database, `usuarios/colaboradores/${novoId}`), { nome, login, senha: pass });
+    await set(ref(database, `usuarios/colaboradores/${novoId}`), { nome, login: rawLogin, senha: pass });
     
-    currentUser = { id: novoId, nome, login, role: "colaboradores" };
+    currentUser = { id: novoId, nome, login: rawLogin, role: "colaboradores" };
     sessionStorage.setItem("logged_user", JSON.stringify(currentUser));
     Toast.fire({ icon: 'success', title: 'Cadastro realizado!' });
     initApp();
@@ -210,14 +214,18 @@ const bindAdminEvents = () => {
   $("#btnCancelUserForm").onclick = () => $("#modalUserForm").classList.remove("show");
 
   $("#btnSaveUserForm").onclick = async () => {
-    const id = $("#muId").value; const nome = $("#muName").value.trim(); const login = $("#muLogin").value.trim();
-    const senha = $("#muPass").value.trim(); const role = $("#muRole").value;
+    const id = $("#muId").value; 
+    const nome = $("#muName").value.trim(); 
+    const rawLogin = $("#muLogin").value.trim();
+    const loginFormatado = rawLogin.toLowerCase();
+    const senha = $("#muPass").value.trim(); 
+    const role = $("#muRole").value;
 
-    if(!nome || !login || !senha) return Swal.fire('Atenção', 'Preencha todos os campos.', 'warning');
+    if(!nome || !rawLogin || !senha) return Swal.fire('Atenção', 'Preencha todos os campos.', 'warning');
     
     let exists = false;
     Object.entries({ ...(state.usuarios?.admins || {}), ...(state.usuarios?.colaboradores || {}) }).forEach(([k, v]) => {
-      if(v.login === login && k !== id) exists = true;
+      if(v.login && v.login.toLowerCase() === loginFormatado && k !== id) exists = true;
     });
     if(exists) return Swal.fire('Erro', 'Login já existente.', 'error');
 
@@ -226,7 +234,7 @@ const bindAdminEvents = () => {
        let oldRole = state.usuarios?.admins?.[id] ? 'admins' : (state.usuarios?.colaboradores?.[id] ? 'colaboradores' : null);
        if(oldRole && oldRole !== role) await remove(ref(database, `usuarios/${oldRole}/${id}`));
     }
-    await set(ref(database, `usuarios/${role}/${usrId}`), { nome, login, senha });
+    await set(ref(database, `usuarios/${role}/${usrId}`), { nome, login: rawLogin, senha });
     $("#modalUserForm").classList.remove("show"); Toast.fire({ icon: 'success', title: 'Usuário salvo!' });
   };
 
@@ -260,17 +268,14 @@ const bindAdminEvents = () => {
     const [y, m, d] = newDt.split("-");
     const newSecName = state.setores[newSecId].nome;
 
-    // Remove a pessoa que pediu a troca do dia antigo
     await saveSchedule(activeResolveReq.uid, activeResolveReq.uname, activeResolveReq.oldY, activeResolveReq.oldM, activeResolveReq.oldD, null, null, "", true);
 
-    // Se Substituir alguém
     if (swapTargetId) {
       await saveSchedule(swapTargetId, "", parseInt(y), parseInt(m)-1, parseInt(d), null, null, "", true);
       const targetName = state.usuarios?.colaboradores?.[swapTargetId]?.nome || "Colaborador";
       await saveSchedule(swapTargetId, targetName, activeResolveReq.oldY, activeResolveReq.oldM, activeResolveReq.oldD, activeResolveReq.secId, activeResolveReq.secName, activeResolveReq.oldShift || "", true);
     }
 
-    // Coloca Solicitante na Nova Data/Turno
     await saveSchedule(activeResolveReq.uid, activeResolveReq.uname, parseInt(y), parseInt(m)-1, parseInt(d), newSecId, newSecName, newShift, true);
 
     await remove(ref(database, `trocas/${activeResolveReq.reqId}`));
