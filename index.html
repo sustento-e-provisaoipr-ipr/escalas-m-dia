@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Escalas de Serviço</title>
+  <title>📆​Escalas Mídia</title>
   <meta name="theme-color" content="#0b1220"/>
   <link rel="stylesheet" href="styles.css"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -13,12 +13,12 @@
   <!-- TELA DE LOGIN / CADASTRO -->
   <div id="loginOverlay" class="login-overlay">
     <div class="login-box">
-      <div class="login-title">📆​Escalas Mídia </div>
+      <div class="login-title">Escalas de Serviço</div>
       <p class="muted small" style="text-align: center; margin-bottom: 20px;">Acesso ao portal de escalas</p>
 
       <div id="formLogin">
         <label class="lbl">Usuário
-          <input id="loginUser" type="text" class="input" style="margin-bottom:10px" placeholder="">
+          <input id="loginUser" type="text" class="input" style="margin-bottom:10px" placeholder="ex: pa.costa">
         </label>
         <label class="lbl">Senha
           <input id="loginPass" type="password" class="input" style="margin-bottom:14px" placeholder="Sua senha">
@@ -31,7 +31,7 @@
 
       <div id="formRegister" style="display:none;">
         <label class="lbl">Nome Completo
-          <input id="regName" type="text" class="input" style="margin-bottom:10px" placeholder="paulo sergio costa">
+          <input id="regName" type="text" class="input" style="margin-bottom:10px" placeholder="Ex: Paulo Costa">
         </label>
         <label class="lbl">Usuário (Login)
           <input id="regUser" type="text" class="input" style="margin-bottom:10px" placeholder="Ex: pa.costa">
@@ -65,7 +65,7 @@
     <!-- PAINEL ADMIN -->
     <aside class="panel left" id="adminSidebar">
       
-      <!-- PAINEL DE TROCAS (NOVO) -->
+      <!-- PAINEL DE TROCAS -->
       <div id="adminSwapsPanel" style="display:none; border: 2px solid rgba(251,113,133,.4); background:#fff5f5; border-radius:14px; margin-bottom:20px; padding:10px;">
         <div class="h2" style="color:var(--danger); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
           <span>🔔</span> Trocas Solicitadas
@@ -185,6 +185,14 @@
         <label class="lbl">Selecione o Setor
           <select id="schSector" class="select" style="margin-top:5px;"></select>
         </label>
+        <label class="lbl">Turno (Opcional)
+          <select id="schShift" class="select" style="margin-top:5px;">
+            <option value="">Padrão / Não Especificado</option>
+            <option value="Manhã">Manhã</option>
+            <option value="Tarde">Tarde</option>
+            <option value="Noite">Noite</option>
+          </select>
+        </label>
       </div>
       <div class="modal-foot">
         <button class="btn danger ghost" id="btnRemoveSchedule">Remover da Escala</button>
@@ -211,9 +219,19 @@
         <label class="lbl">Escolha a Nova Data:
           <input type="date" id="rsNewDate" class="input" style="margin-top:5px;" />
         </label>
-        <label class="lbl">Defina o Novo Setor:
-          <select id="rsNewSector" class="select" style="margin-top:5px;"></select>
-        </label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <label class="lbl">Defina o Novo Setor:
+            <select id="rsNewSector" class="select" style="margin-top:5px;"></select>
+          </label>
+          <label class="lbl">Turno (Opcional):
+            <select id="rsNewShift" class="select" style="margin-top:5px;">
+              <option value="">Padrão</option>
+              <option value="Manhã">Manhã</option>
+              <option value="Tarde">Tarde</option>
+              <option value="Noite">Noite</option>
+            </select>
+          </label>
+        </div>
 
         <div style="margin-top: 15px; border-top: 1px solid var(--line); padding-top:10px;">
           <div class="h2" style="font-size:14px; margin-bottom:5px;">Equipe nesta Nova Data:</div>

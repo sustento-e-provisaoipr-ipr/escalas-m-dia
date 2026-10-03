@@ -25,12 +25,12 @@ let state = { usuarios: { admins: {}, colaboradores: {} }, setores: {}, escalas:
 let currentUser = null;
 let current = new Date();
 
-// --- SISTEMA ANTI-F5 (Recupera dados se houver) ---
+// Anti-F5
 let selectedYear = sessionStorage.getItem("savedYear") ? parseInt(sessionStorage.getItem("savedYear")) : current.getFullYear();
 let selectedMonth = sessionStorage.getItem("savedMonth") ? parseInt(sessionStorage.getItem("savedMonth")) : current.getMonth();
 let schedulingData = null;
 let swapData = null;
-let activeResolveReq = null; // Armazena os dados da troca sendo resolvida pelo admin
+let activeResolveReq = null; 
 
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
@@ -48,10 +48,11 @@ const saveSector = async (id, nome, cor) => set(ref(database, `setores/${id}`), 
 const updateSector = async (id, nome, cor) => update(ref(database, `setores/${id}`), { nome, cor });
 const removeSector = async (id) => remove(ref(database, `setores/${id}`));
 
-const saveSchedule = async (userId, userName, year, month, day, sectorId, sectorName, silent = false) => {
+// Alterado para aceitar o "turno" (Manhã, Tarde, Noite)
+const saveSchedule = async (userId, userName, year, month, day, sectorId, sectorName, turno = "", silent = false) => {
   const path = `escalas/${String(year)}/${pad2(month+1)}/${pad2(day)}/${userId}`;
   if (sectorId) {
-    await set(ref(database, path), { nome_colaborador: userName, setor_id: sectorId, setor_nome: sectorName });
+    await set(ref(database, path), { nome_colaborador: userName, setor_id: sectorId, setor_nome: sectorName, turno: turno });
     if(!silent) Toast.fire({ icon: 'success', title: 'Escala salva!' });
   } else {
     await remove(ref(database, path));
@@ -118,7 +119,7 @@ const setupAuth = () => {
     Toast.fire({ icon: 'success', title: 'Cadastro realizado!' });
     initApp();
   };
-  $("#btnLogout").onclick = () => { sessionStorage.clear(); location.reload(); }; // Limpa tudo ao sair
+  $("#btnLogout").onclick = () => { sessionStorage.clear(); location.reload(); }; 
 };
 
 // ---------- INICIALIZAÇÃO ----------
@@ -144,7 +145,7 @@ const initApp = async () => {
     for(let y=2024; y<=2500; y++) sel.innerHTML += `<option value="${y}" ${y===selectedYear?'selected':''}>${y}</option>`;
     sel.onchange = (e) => { 
       selectedYear = Number(e.target.value); 
-      sessionStorage.setItem("savedYear", selectedYear); // Salva o ano para anti-F5
+      sessionStorage.setItem("savedYear", selectedYear); 
       updateViews(); 
     };
   });
@@ -153,7 +154,7 @@ const initApp = async () => {
     for(let m=0; m<12; m++) sel.innerHTML += `<option value="${m}" ${m===selectedMonth?'selected':''}>${MONTHS[m]}</option>`;
     sel.onchange = (e) => { 
       selectedMonth = Number(e.target.value); 
-      sessionStorage.setItem("savedMonth", selectedMonth); // Salva o mês para anti-F5
+      sessionStorage.setItem("savedMonth", selectedMonth); 
       updateViews(); 
     };
   });
@@ -176,7 +177,6 @@ const updateFiltersOptions = () => {
   const selSec = $("#filterSector");
   if(!selUser || !selSec) return;
   
-  // Anti-F5 dos Filtros
   const savedFUser = sessionStorage.getItem("savedFUser") || "";
   const savedFSec = sessionStorage.getItem("savedFSec") || "";
 
@@ -233,55 +233,52 @@ const bindAdminEvents = () => {
   $("#btnCancelSchedule").onclick = () => $("#modalSchedule").classList.remove("show");
   $("#btnSaveSchedule").onclick = async () => {
     const sectorId = $("#schSector").value;
+    const turno = $("#schShift").value;
     if(!sectorId) return Swal.fire('Atenção', 'Selecione um setor.', 'warning');
-    await saveSchedule(schedulingData.userId, schedulingData.userName, schedulingData.year, schedulingData.month, schedulingData.day, sectorId, state.setores[sectorId].nome);
+    await saveSchedule(schedulingData.userId, schedulingData.userName, schedulingData.year, schedulingData.month, schedulingData.day, sectorId, state.setores[sectorId].nome, turno);
     $("#modalSchedule").classList.remove("show");
   };
   $("#btnRemoveSchedule").onclick = async () => {
-    await saveSchedule(schedulingData.userId, schedulingData.userName, schedulingData.year, schedulingData.month, schedulingData.day, null);
+    await saveSchedule(schedulingData.userId, schedulingData.userName, schedulingData.year, schedulingData.month, schedulingData.day, null, null, "");
     $("#modalSchedule").classList.remove("show");
   };
 
-  // Eventos de Resolução de Troca (Nova Janela Inteligente)
   $("#btnCancelResolve").onclick = () => $("#modalAdminResolveSwap").classList.remove("show");
   $("#btnRejectSwap").onclick = async () => {
     await remove(ref(database, `trocas/${activeResolveReq.reqId}`));
     $("#modalAdminResolveSwap").classList.remove("show"); Toast.fire({ icon: 'info', title: 'Troca rejeitada.' });
   };
-  $("#rsNewDate").onchange = () => updateSwapPreview(); // Atualiza a lista em tempo real ao mudar a data no calendário de troca
+  $("#rsNewDate").onchange = () => updateSwapPreview(); 
+  
   $("#btnConfirmResolve").onclick = async () => {
     const newDt = $("#rsNewDate").value;
     const newSecId = $("#rsNewSector").value;
-    const swapTargetId = $("#rsSwapWith").value; // O usuário que vai ceder o lugar, se houver
+    const newShift = $("#rsNewShift").value;
+    const swapTargetId = $("#rsSwapWith").value;
 
     if(!newDt || !newSecId) return Swal.fire('Erro', 'Escolha a Nova Data e o Novo Setor para confirmar.', 'error');
-    
     const [y, m, d] = newDt.split("-");
     const newSecName = state.setores[newSecId].nome;
 
-    // 1. Apaga a escala original do solicitante
-    await saveSchedule(activeResolveReq.uid, activeResolveReq.uname, activeResolveReq.oldY, activeResolveReq.oldM, activeResolveReq.oldD, null, null, true);
+    // Remove a pessoa que pediu a troca do dia antigo
+    await saveSchedule(activeResolveReq.uid, activeResolveReq.uname, activeResolveReq.oldY, activeResolveReq.oldM, activeResolveReq.oldD, null, null, "", true);
 
-    // 2. Se o Admin decidiu Substituir o Fulano pelo Ciclano:
+    // Se Substituir alguém
     if (swapTargetId) {
-      // Tira o alvo da nova data
-      await saveSchedule(swapTargetId, "", parseInt(y), parseInt(m)-1, parseInt(d), null, null, true);
-      // Coloca o alvo na data/setor antigo do solicitante (Inverte as posições)
+      await saveSchedule(swapTargetId, "", parseInt(y), parseInt(m)-1, parseInt(d), null, null, "", true);
       const targetName = state.usuarios?.colaboradores?.[swapTargetId]?.nome || "Colaborador";
-      await saveSchedule(swapTargetId, targetName, activeResolveReq.oldY, activeResolveReq.oldM, activeResolveReq.oldD, activeResolveReq.secId, activeResolveReq.secName, true);
+      await saveSchedule(swapTargetId, targetName, activeResolveReq.oldY, activeResolveReq.oldM, activeResolveReq.oldD, activeResolveReq.secId, activeResolveReq.secName, activeResolveReq.oldShift || "", true);
     }
 
-    // 3. Coloca o Solicitante na Nova Data e Novo Setor
-    await saveSchedule(activeResolveReq.uid, activeResolveReq.uname, parseInt(y), parseInt(m)-1, parseInt(d), newSecId, newSecName, true);
+    // Coloca Solicitante na Nova Data/Turno
+    await saveSchedule(activeResolveReq.uid, activeResolveReq.uname, parseInt(y), parseInt(m)-1, parseInt(d), newSecId, newSecName, newShift, true);
 
-    // 4. Exclui a notificação de troca
     await remove(ref(database, `trocas/${activeResolveReq.reqId}`));
     $("#modalAdminResolveSwap").classList.remove("show");
-    Swal.fire('Sucesso!', 'A troca de escalas foi aplicada perfeitamente no banco de dados.', 'success');
+    Swal.fire('Sucesso!', 'A troca de escalas foi aplicada perfeitamente.', 'success');
   };
 };
 
-// Atualiza visualmente quem já está no dia selecionado no Modal de Troca
 const updateSwapPreview = () => {
   const dtVal = $("#rsNewDate").value;
   const list = $("#rsExistingUsers");
@@ -299,7 +296,8 @@ const updateSwapPreview = () => {
   } else {
     usersInDay.forEach(uid => {
       const shift = daySch[uid];
-      list.innerHTML += `<div style="font-size:13px; margin-bottom:4px;">✅ <b>${escapeHtml(shift.nome_colaborador)}</b> (${escapeHtml(shift.setor_nome)})</div>`;
+      const turnoText = shift.turno ? ` - ${shift.turno}` : '';
+      list.innerHTML += `<div style="font-size:13px; margin-bottom:4px;">✅ <b>${escapeHtml(shift.nome_colaborador)}</b> (${escapeHtml(shift.setor_nome)}${turnoText})</div>`;
       selTarget.innerHTML += `<option value="${uid}">Trocar lugar com ${escapeHtml(shift.nome_colaborador)}</option>`;
     });
   }
@@ -315,10 +313,12 @@ const renderSwapsAdmin = () => {
     const el = document.createElement("div"); el.className = "card"; el.style.flexDirection = "column"; el.style.alignItems = "flex-start";
     
     let suggHtml = req.newDate ? `<b style="color:var(--blue)">${req.newDate.split("-").reverse().join("/")}</b>` : `<b style="color:var(--muted)">Em aberto (Você decide)</b>`;
+    const turnoHtml = req.oldShift ? ` - Turno: ${req.oldShift}` : '';
 
     el.innerHTML = `
       <div style="font-size:13px;">
         <b>${escapeHtml(req.uname)}</b> deseja alterar o dia <b>${pad2(req.oldD)}/${pad2(req.oldM+1)}/${req.oldY}</b>
+        <br><span class="muted" style="font-size:12px;">Saindo de: ${escapeHtml(req.secName)}${turnoHtml}</span>
         <br>Sugestão para o novo dia: ${suggHtml}
       </div>
       <button class="btn blue btn-resolve" style="width:100%; margin-top:8px; padding:6px; font-size:12px;">Resolver Troca</button>
@@ -328,14 +328,14 @@ const renderSwapsAdmin = () => {
       activeResolveReq = { reqId, ...req };
       $("#rsUserName").textContent = req.uname;
       $("#rsOldDate").textContent = `${pad2(req.oldD)}/${pad2(req.oldM+1)}/${req.oldY}`;
-      $("#rsOldSector").textContent = req.secName;
+      $("#rsOldSector").textContent = req.secName + (req.oldShift ? ` - ${req.oldShift}` : '');
       $("#rsSuggDate").textContent = req.newDate ? req.newDate.split("-").reverse().join("/") : "Nenhuma preferência definida";
       
-      // Auto preenche a data e os setores
       $("#rsNewDate").value = req.newDate || "";
       const selS = $("#rsNewSector"); selS.innerHTML = "";
       Object.entries(state.setores||{}).forEach(([sid, s]) => { selS.innerHTML += `<option value="${sid}">${escapeHtml(s.nome)}</option>`; });
-      selS.value = req.secId; // Preenche com o setor atual da pessoa
+      selS.value = req.secId;
+      $("#rsNewShift").value = req.oldShift || "";
 
       updateSwapPreview();
       $("#modalAdminResolveSwap").classList.add("show");
@@ -422,9 +422,12 @@ const buildCalendarHTML = (y, m, title) => {
       
       for(let d=1; d<=days; d++) {
         const sch = state.escalas?.[String(y)]?.[pad2(m+1)]?.[pad2(d)]?.[uid];
+        
         if(sch && (!fSector || sch.setor_id === fSector)) {
           const cor = (state.setores || {})[sch.setor_id]?.cor || '#36c37d';
-          html += `<td data-uid="${uid}" data-uname="${escapeHtml(apenasColaboradores[uid].nome)}" data-day="${d}" data-m="${m}" data-y="${y}" title="${escapeHtml(sch.setor_nome)}">
+          const turnoText = sch.turno ? ` (${sch.turno})` : '';
+          
+          html += `<td data-uid="${uid}" data-uname="${escapeHtml(apenasColaboradores[uid].nome)}" data-day="${d}" data-m="${m}" data-y="${y}" title="${escapeHtml(sch.setor_nome)}${turnoText}">
                     <div class="cell" style="background-color:${cor}; color:#fff;">S</div>
                    </td>`;
         } else {
@@ -454,14 +457,20 @@ const renderAdminCalendars = () => {
       Object.entries(state.setores || {}).forEach(([sid, sec]) => { sel.innerHTML += `<option value="${sid}">${escapeHtml(sec.nome)}</option>`; });
       
       const currentSch = state.escalas?.[cYear]?.[pad2(cMonth+1)]?.[pad2(dayNum)]?.[uid];
-      if(currentSch) sel.value = currentSch.setor_id;
+      if(currentSch) {
+        sel.value = currentSch.setor_id;
+        $("#schShift").value = currentSch.turno || "";
+      } else {
+        sel.value = "";
+        $("#schShift").value = "";
+      }
 
       $("#modalSchedule").classList.add("show");
     };
   });
 };
 
-// ---------- MODULOS DO USUÁRIO COMUM (COLABORADOR) ----------
+// ---------- MODULOS DO USUÁRIO COMUM ----------
 const bindUserEvents = () => {
   $("#swapHasSuggestion").onchange = (e) => {
     $("#swapDateWrap").style.display = e.target.value === "yes" ? "block" : "none";
@@ -477,12 +486,12 @@ const bindUserEvents = () => {
     await set(ref(database, `trocas/${reqId}`), {
       uid: currentUser.id, uname: currentUser.nome,
       oldY: swapData.year, oldM: swapData.month, oldD: swapData.day,
-      secId: swapData.secId, secName: swapData.secName,
+      secId: swapData.secId, secName: swapData.secName, oldShift: swapData.turno,
       newDate: hasSugg ? newDate : null
     });
 
     $("#modalUserSwap").classList.remove("show");
-    Toast.fire({ icon: 'success', title: 'Pedido de alteração enviado ao administrador!' });
+    Toast.fire({ icon: 'success', title: 'Pedido enviado ao administrador!' });
   };
 };
 
@@ -502,6 +511,8 @@ const renderUserDashboard = () => {
       const dt = new Date(selectedYear, selectedMonth, d);
       const wName = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"][dt.getDay()];
       
+      const turnoBadge = mySch.turno ? `<div style="display:inline-block; margin-top:4px; font-size:11px; font-weight:800; background:rgba(11,18,32,.06); color:var(--muted); padding:2px 8px; border-radius:6px; border:1px solid rgba(11,18,32,.1);">Turno: ${escapeHtml(mySch.turno)}</div>` : '';
+
       const card = document.createElement("div"); card.className = "schedule-card";
       card.innerHTML = `
         <div class="s-date" style="background:${cor}20; color:${cor};">
@@ -511,14 +522,16 @@ const renderUserDashboard = () => {
         <div class="s-info" style="flex:1;">
           <div class="small muted">Servirá no setor:</div>
           <div class="s-sector" style="color:${cor}">${escapeHtml(mySch.setor_nome)}</div>
+          ${turnoBadge}
         </div>
         <button class="btn ghost btn-swap" style="padding: 6px 10px; font-size:12px; color: var(--blue);">Pedir Alteração</button>
       `;
 
       card.querySelector(".btn-swap").onclick = () => {
-        swapData = { year: selectedYear, month: selectedMonth, day: d, secId: mySch.setor_id, secName: mySch.setor_nome };
+        swapData = { year: selectedYear, month: selectedMonth, day: d, secId: mySch.setor_id, secName: mySch.setor_nome, turno: mySch.turno || "" };
+        const turnoText = mySch.turno ? ` (${mySch.turno})` : '';
         $("#swapOldDate").textContent = `${dStr}/${mStr}/${yStr}`;
-        $("#swapSectorName").textContent = mySch.setor_nome;
+        $("#swapSectorName").textContent = mySch.setor_nome + turnoText;
         $("#swapHasSuggestion").value = "no"; $("#swapDateWrap").style.display = "none"; $("#swapNewDate").value = "";
         $("#modalUserSwap").classList.add("show");
       };
